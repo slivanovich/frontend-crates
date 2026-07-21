@@ -255,6 +255,9 @@ fn check_pair<T: interleave::Splittable>(
     Ok(())
 }
 
+// `&String` (not `&str`) so it can be passed as a fn pointer where the generic
+// item type is `String` — same reason as `token_input` below.
+#[allow(clippy::ptr_arg)]
 fn text_input(s: &String) -> ToolParserInput<'_> {
     ToolParserInput::Text(s.as_str())
 }

@@ -269,7 +269,7 @@ mod schedule_core_roundtrip {
         let a: Vec<String> = (0..4).map(|i| format!("a{i}")).collect();
         let b: Vec<String> = (0..4).map(|i| format!("b{i}")).collect();
         let offset = 2;
-        let tagged = interleave_items(&vec![a, b], Schedule::FirstByteOffset(offset));
+        let tagged = interleave_items(&[a, b], Schedule::FirstByteOffset(offset));
         let first_b_pos = tagged.iter().position(|(idx, _)| *idx == 1).unwrap();
         let zero_before = tagged[..first_b_pos]
             .iter()
@@ -318,7 +318,7 @@ mod schedule_core_roundtrip {
         let b: Vec<String> = vec!["b0".into(), "b1".into(), "b2".into()];
         let c: Vec<String> = vec!["c0".into()];
         let demuxed = demux_items(&interleave_items(
-            &vec![a.clone(), b.clone(), c.clone()],
+            &[a.clone(), b.clone(), c.clone()],
             Schedule::RoundRobin,
         ));
         assert_eq!(demuxed[&0], a);
