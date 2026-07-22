@@ -28,8 +28,6 @@
 //! (`conformance/tests/parity_toolcalling_stream_interleave.rs`) `#[path]`-include
 //! it so the schedule logic has exactly one source of truth across crates.
 
-#![allow(dead_code)]
-
 use std::collections::BTreeMap;
 
 /// How to merge `k` per-choice item sequences onto one tagged wire.
