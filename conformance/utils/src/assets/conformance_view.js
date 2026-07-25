@@ -425,7 +425,11 @@
     if (inp.kind === 'chunks' && inp.chunks && inp.chunks.length) {
       return inp.chunks.map(function (ch) { return (ch && ch.delta_text) || ''; }).join('');
     }
-    return inp.text != null ? String(inp.text) : null;
+    // An empty `model_text` is dropped from the model (falsy), so a text-kind input with
+    // no `text` is EMPTY, not missing — `TOOLCALLING.batch.9.a` is the empty-model-text
+    // case and was reporting "no input recorded" for every family.
+    if (inp.kind === 'text' || inp.text != null) { return String(inp.text == null ? '' : inp.text); }
+    return null;
   }
 
   // A family with no input for this case still gets a row, carrying WHY — an empty
@@ -449,10 +453,19 @@
       // An input that EXISTS but is empty is not the same as a missing one — case 9.a
       // ("Empty model text") is empty on purpose, and calling that "no input recorded"
       // would read as a gap in the corpus.
+      // The OUTPUT column shows the reference candidate's final result — the same
+      // block the cell popup's `assembled` row shows, so the two agree.
+      var cands = (tip && tip.candidates) || [];
+      var ref = null;
+      for (var i = 0; i < cands.length; i++) {
+        if (cands[i] && cands[i].is_ref) { ref = cands[i]; break; }
+      }
+      if (!ref && cands.length) { ref = cands[0]; }
       rows.push({
         family: row.family || '',
         label: row.model_label || row.family || '',
         text: text ? text : null,
+        block: ref ? ref.block : null,
         reason: text ? null : (text === '' ? 'empty input — this case tests empty model text'
                                            : 'n/a — ' + naReason(cell, tip)),
       });
@@ -477,22 +490,25 @@
     var body = '';
     (m.grammar || []).forEach(function (r) {
       var cls = r.text ? '' : ' class="gr-na"';
-      var cell;
+      var cell, outCell;
+      // ONE context per row, seeded from that row's input: every family has its own
+      // marker vocabulary, and seeding from the input is what makes a value carry the
+      // same color into the output — the same convention as the cell popups.
+      var mc = (typeof window !== 'undefined') && window.__markupColorize;
+      var ctx = null;
+      if (mc) {
+        ctx = mc.newLinkCtx();
+        if (r.text) { mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx); }
+        mc.sealLinkCtx(ctx);
+      }
       if (r.text) {
-        // Colorize each row against ITS OWN family: one context per row, since every
-        // family has a different marker vocabulary.
-        var mc = (typeof window !== 'undefined') && window.__markupColorize;
-        if (mc) {
-          var ctx = mc.newLinkCtx();
-          mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx);
-          mc.sealLinkCtx(ctx);
-          cell = mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx);
-        } else {
-          cell = escapeHtml(r.text);
-        }
+        cell = mc ? mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx)
+                  : escapeHtml(r.text);
       } else {
         cell = '<span class="parser-base">' + escapeHtml(r.reason || '') + '</span>';
       }
+      outCell = r.block ? outputBlock(r.block, r.family || null, ctx).replace(/\n/g, '<br>')
+                        : '<span class="parser-base">—</span>';
       // Key the row by MODEL, not by parser family. DeepSeek V3, V3.1 and V3.2 are
       // distinct models that happen to share one parser family, and labelling all three
       // `deepseek_v3` made them read as duplicate rows. Every model gets its own row,
@@ -500,10 +516,11 @@
       var fam = (r.family && r.family !== r.label)
         ? '<span class="grfam">' + escapeHtml(r.family) + '</span>' : '';
       body += '<tr' + cls + '><td class="grf">' + escapeHtml(r.label || r.family)
-        + fam + '</td><td class="gri">' + cell + '</td></tr>';
+        + fam + '</td><td class="gri">' + cell + '</td>'
+        + '<td class="gro">' + outCell + '</td></tr>';
     });
     return h + '<table class="ttip-chunks ttip-grammar"><thead><tr><th>model</th>'
-      + '<th>input</th></tr></thead><tbody>' + body + '</tbody></table>';
+      + '<th>input</th><th>output</th></tr></thead><tbody>' + body + '</tbody></table>';
   }
 
   function subHeadersHtml(tab) {

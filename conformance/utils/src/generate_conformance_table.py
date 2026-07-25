@@ -1828,7 +1828,11 @@ def _input_model(case: dict) -> dict:
         return {"kind": "chunks", "text": None, "family": family,
                 "chunks": [_chunk_model(c) for c in chunks if isinstance(c, dict)]}
     model_text = case.get("model_text")
-    if isinstance(model_text, str) and model_text:
+    # An EMPTY model_text is still a text input, not a missing one — dropping it to
+    # `kind: None` made `TOOLCALLING.batch.9.a` ("Empty model text") indistinguishable
+    # from a case with no fixture, so the grammar popup reported "no input recorded"
+    # for every family instead of "empty input".
+    if isinstance(model_text, str):
         return {"kind": "text", "text": model_text, "chunks": None, "family": family}
     return {"kind": None, "text": None, "chunks": None, "family": family}
 
