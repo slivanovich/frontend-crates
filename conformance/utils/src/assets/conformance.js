@@ -846,6 +846,19 @@
       caseTh.className = 'trow-case';
       const link = subTh.querySelector('a');
       caseTh.appendChild(link ? link.cloneNode(true) : document.createTextNode(subTh.textContent.trim()));
+      // Carry the per-case grammar popup into the transposed view. Transposing turns the
+      // case COLUMN header into a ROW header, and this branch previously cloned only the
+      // link — so the popup silently disappeared whenever the table was transposed.
+      // Copy the `data-ttip-id` (the model key) and attach an empty `.ttip`; it then
+      // builds lazily exactly like the upright header.
+      const caseTipId = subTh.getAttribute('data-ttip-id');
+      if (caseTipId) {
+        caseTh.setAttribute('data-ttip-id', caseTipId);
+        const caseTip = document.createElement('div');
+        caseTip.className = 'ttip';
+        caseTh.appendChild(caseTip);
+        attachTooltip(caseTh);
+      }
       tr.appendChild(caseTh);
       models.forEach(function (m) {
         const src = m.cells[idx];

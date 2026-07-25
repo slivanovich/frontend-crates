@@ -123,7 +123,7 @@
     var t = e.target;
     // `th.case-sub` carries the per-column grammar popup and builds the same lazy way
     // a data cell does — without it here, hovering a header would show an empty box.
-    var td = t && t.closest ? t.closest('td.cell[data-ttip-id], th.case-sub[data-ttip-id]') : null;
+    var td = t && t.closest ? t.closest('td.cell[data-ttip-id], th.case-sub[data-ttip-id], th.trow-case[data-ttip-id]') : null;
     if (td) { buildTooltipInto(td); }
   }
   // pointerover/focusin/click all bubble, so one document listener covers every
@@ -493,10 +493,16 @@
       } else {
         cell = '<span class="parser-base">' + escapeHtml(r.reason || '') + '</span>';
       }
-      body += '<tr' + cls + '><td class="grf">' + escapeHtml(r.family || r.label)
-        + '</td><td class="gri">' + cell + '</td></tr>';
+      // Key the row by MODEL, not by parser family. DeepSeek V3, V3.1 and V3.2 are
+      // distinct models that happen to share one parser family, and labelling all three
+      // `deepseek_v3` made them read as duplicate rows. Every model gets its own row,
+      // exactly like V4; the family is kept alongside since it names the grammar.
+      var fam = (r.family && r.family !== r.label)
+        ? '<span class="grfam">' + escapeHtml(r.family) + '</span>' : '';
+      body += '<tr' + cls + '><td class="grf">' + escapeHtml(r.label || r.family)
+        + fam + '</td><td class="gri">' + cell + '</td></tr>';
     });
-    return h + '<table class="ttip-chunks ttip-grammar"><thead><tr><th>family</th>'
+    return h + '<table class="ttip-chunks ttip-grammar"><thead><tr><th>model</th>'
       + '<th>input</th></tr></thead><tbody>' + body + '</tbody></table>';
   }
 

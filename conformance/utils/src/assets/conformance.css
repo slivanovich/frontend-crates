@@ -356,10 +356,15 @@ td.cell .ttip a:hover, td.parser .ttip a:hover { color: #dbeafe; background: tra
  * and the popup is wider than a data cell's since it lists ~20 families at once.
  * These rules come AFTER the .ttip-chunks widths above so the narrower family column
  * wins (same specificity, later source order). */
-th.case-sub { position: relative; cursor: pointer; }
+th.case-sub, th.trow-case { position: relative; cursor: pointer; }
+/* Transposed view: the case moves to a ROW header but carries the same popup. */
+th.trow-case .ttip { min-width: 46em; font-weight: 400; text-align: left; }
 th.case-sub .ttip { min-width: 46em; font-weight: 400; text-align: left; }
 .ttip-grammar th:first-child, .ttip-grammar td:first-child { width: 11em; }
 .ttip-grammar td.grf { color: #93c5fd; font-weight: 600; white-space: nowrap; }
+/* Parser family under the model name: distinct models can share one grammar
+ * (DeepSeek V3 / V3.1 / V3.2), so both facts have to be visible. */
+.ttip-grammar td.grf .grfam { display: block; color: #64748b; font-weight: 400; font-size: 10px; }
 .ttip-grammar td.gri { color: #e5e7eb; }
 .ttip-grammar tr.gr-na td.gri { color: #94a3b8; font-style: italic; }
 .ttip-unavail { margin-top: 3px; color: #94a3b8; font-style: normal; font-size: 11px; }
