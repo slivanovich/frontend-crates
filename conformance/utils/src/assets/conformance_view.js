@@ -121,7 +121,9 @@
 
   function delegatedBuild(e) {
     var t = e.target;
-    var td = t && t.closest ? t.closest('td.cell[data-ttip-id]') : null;
+    // `th.case-sub` carries the per-column grammar popup and builds the same lazy way
+    // a data cell does — without it here, hovering a header would show an empty box.
+    var td = t && t.closest ? t.closest('td.cell[data-ttip-id], th.case-sub[data-ttip-id]') : null;
     if (td) { buildTooltipInto(td); }
   }
   // pointerover/focusin/click all bubble, so one document listener covers every
@@ -295,6 +297,7 @@
 
   // --- Tooltip content (built lazily into the empty .ttip) -------------------
   function buildTooltipHtml(m) {
+    if (m && m.grammar) { return buildGrammarHtml(m); }
     var h = '';
     if (m.head) { h += '<div class="ttip-head">' + escapeHtml(m.head) + '</div>'; }
     // One link context per tooltip, shared by the input and every output cell. Harvest
@@ -411,16 +414,92 @@
     (tab.column_groups || []).forEach(function (g) { h += groupColumnHeader(g); });
     return h;
   }
+  // --- Per-column grammar popup ----------------------------------------------
+  // Hovering a sub-case header shows THE SAME test case in every family's grammar,
+  // side by side, so the envelope differences are readable at a glance. Streaming
+  // inputs are joined back into one text: the chunk split is a streaming concern,
+  // not a grammar one, and chunk boundaries only obscure the shape here.
+  function caseInputText(tip) {
+    if (!tip) { return null; }
+    var inp = tip.input || {};
+    if (inp.kind === 'chunks' && inp.chunks && inp.chunks.length) {
+      return inp.chunks.map(function (ch) { return (ch && ch.delta_text) || ''; }).join('');
+    }
+    return inp.text != null ? String(inp.text) : null;
+  }
+
+  // A family with no input for this case still gets a row, carrying WHY — an empty
+  // row would read as "identical grammar" rather than "case does not apply here".
+  function naReason(cell, tip) {
+    if (tip && tip.na_note) { return tip.na_note; }
+    if (!cell) { return 'no cell for this case'; }
+    if (cell.kind === 'blank') { return 'case not defined for this family'; }
+    if (cell.kind === 'missing') { return 'fixture missing'; }
+    if (cell.status === 'na') { return 'not applicable to this family'; }
+    return 'no input recorded';
+  }
+
+  function columnGrammarModel(tab, col) {
+    var rows = [];
+    (tab.rows || []).forEach(function (row) {
+      if (!row || row.section) { return; }              // section banners are not families
+      var cell = (row.cells || {})[col.sub];
+      var tip = cell && cell.tooltip;
+      var text = caseInputText(tip);
+      // An input that EXISTS but is empty is not the same as a missing one — case 9.a
+      // ("Empty model text") is empty on purpose, and calling that "no input recorded"
+      // would read as a gap in the corpus.
+      rows.push({
+        family: row.family || '',
+        label: row.model_label || row.family || '',
+        text: text ? text : null,
+        reason: text ? null : (text === '' ? 'empty input — this case tests empty model text'
+                                           : 'n/a — ' + naReason(cell, tip)),
+      });
+    });
+    return { head: col.label, desc: col.desc || '', grammar: rows };
+  }
+
+  function buildGrammarHtml(m) {
+    var h = '<div class="ttip-head">' + escapeHtml('Case ' + (m.head || '')) + '</div>';
+    if (m.desc) { h += '<div class="ttip-section">' + escapeHtml(m.desc) + '</div>'; }
+    var body = '';
+    (m.grammar || []).forEach(function (r) {
+      var cls = r.text ? '' : ' class="gr-na"';
+      var cell;
+      if (r.text) {
+        // Colorize each row against ITS OWN family: one context per row, since every
+        // family has a different marker vocabulary.
+        var mc = (typeof window !== 'undefined') && window.__markupColorize;
+        if (mc) {
+          var ctx = mc.newLinkCtx();
+          mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx);
+          mc.sealLinkCtx(ctx);
+          cell = mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx);
+        } else {
+          cell = escapeHtml(r.text);
+        }
+      } else {
+        cell = '<span class="parser-base">' + escapeHtml(r.reason || '') + '</span>';
+      }
+      body += '<tr' + cls + '><td class="grf">' + escapeHtml(r.family || r.label)
+        + '</td><td class="gri">' + cell + '</td></tr>';
+    });
+    return h + '<table class="ttip-chunks ttip-grammar"><thead><tr><th>family</th>'
+      + '<th>input</th></tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
   function subHeadersHtml(tab) {
     var cols = tab.columns || [];
     var href = escapeAttr(tab.case_docs_href || '');
     var h = '';
     for (var i = 0; i < cols.length; i++) {
       var c = cols[i];
-      // Server always emits a title attr (empty string when no description).
+      // The rich grammar popup replaces the old native `title` tooltip (which could
+      // only carry the one-line description, and rendered alongside the new popup).
       h += '<th class="case-sub ' + escapeAttr(c.band) + '" data-col-hide-group="'
-        + escapeAttr(c.group_key) + '"><a href="' + href + '" title="' + escapeAttr(c.desc || '')
-        + '">' + escapeHtml(c.label) + '</a></th>';
+        + escapeAttr(c.group_key) + '"><a href="' + href + '">'
+        + escapeHtml(c.label) + '</a><div class="ttip"></div></th>';
       // A hidden placeholder cell closes each contiguous group run.
       var next = cols[i + 1];
       if (!next || next.group_key !== c.group_key) {
@@ -554,6 +633,13 @@
     table.setAttribute('data-mode', tab.mode || '');
     var thead = document.createElement('thead');
     thead.innerHTML = '<tr>' + groupHeadersHtml(tab) + '</tr><tr>' + subHeadersHtml(tab) + '</tr>';
+    // The sub-case headers were emitted as a string; key their grammar popups now that
+    // they are real nodes. Built lazily like every other tooltip (a grammar table for
+    // ~20 families is far too much to render up front for every column).
+    var subThs = thead.querySelectorAll('th.case-sub');
+    (tab.columns || []).forEach(function (col, i) {
+      if (subThs[i]) { registerTooltip(subThs[i], columnGrammarModel(tab, col)); }
+    });
     table.appendChild(thead);
     var tbody = document.createElement('tbody');
     // Section banner colspan = model + parser + one per sub-case column. The

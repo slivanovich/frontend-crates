@@ -349,6 +349,19 @@ td.cell .ttip a:hover, td.parser .ttip a:hover { color: #dbeafe; background: tra
 .ttip-chunks th.cbase-h { background: #1e293b; color: #fbbf24; border-right: 2px solid #64748b; }
 .ttip-chunks td.cbase { background: #0b1220; border-right: 2px solid #64748b; max-width: 16em; word-break: break-word; vertical-align: bottom; }
 .ttip-chunks .fr { color: #f59e0b; }
+
+/* Per-column GRAMMAR popup: hovering a sub-case header shows that one test case in
+ * every family's grammar, so the envelope differences are readable side by side. The
+ * `th` needs position:relative because `.ttip` is absolutely positioned against it,
+ * and the popup is wider than a data cell's since it lists ~20 families at once.
+ * These rules come AFTER the .ttip-chunks widths above so the narrower family column
+ * wins (same specificity, later source order). */
+th.case-sub { position: relative; cursor: pointer; }
+th.case-sub .ttip { min-width: 46em; font-weight: 400; text-align: left; }
+.ttip-grammar th:first-child, .ttip-grammar td:first-child { width: 11em; }
+.ttip-grammar td.grf { color: #93c5fd; font-weight: 600; white-space: nowrap; }
+.ttip-grammar td.gri { color: #e5e7eb; }
+.ttip-grammar tr.gr-na td.gri { color: #94a3b8; font-style: italic; }
 .ttip-unavail { margin-top: 3px; color: #94a3b8; font-style: normal; font-size: 11px; }
 /* Paired-tag palette: each distinct tag name gets a unique color (cycles
  * if more names than colors). Orphans get the red-background treatment. */

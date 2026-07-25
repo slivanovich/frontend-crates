@@ -663,7 +663,9 @@
       });
     }
   }
-  document.querySelectorAll('td.cell, td.parser').forEach(attachTooltip);
+  // `th.case-sub` carries the per-column grammar popup (the same case in every
+  // family's grammar); it uses the identical hover/pin machinery as a data cell.
+  document.querySelectorAll('td.cell, td.parser, th.case-sub').forEach(attachTooltip);
 
   // ---- Transpose view (DIS-2280) ----
   // Build a transposed mirror of each panel's table on demand: models become
