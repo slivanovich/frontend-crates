@@ -546,7 +546,7 @@
     if (!sub) { return ''; }
     if (!ctx) { return escapeHtml(sub); }
     if (!ctx.sealed) { registerTokens(sub, ctx); return escapeHtml(sub); }
-    return renderSegments(sub, matchSegments(sub, ctx), 0, sub.length);
+    return renderSegments(sub, matchSegments(sub, ctx), 0, sub.length, false);
   }
   // interval class (tt-c3 / tt-orphan / tt-ns / tt-h-start...) -> marker background class.
   // tt-orphan (unmatched / error) -> the bright-red bg class.
@@ -658,7 +658,26 @@
     return out;
   }
 
-  function renderSegments(text, segs, start, end) {
+  // Whitespace that belongs to no string is still whitespace the MODEL emitted: between
+  // two markers a space, a newline and a tab all render identically, and the YAML folding
+  // bug proved that difference matters. Give it a neutral background so it is visible —
+  // a hue would be wrong, because it is not part of any matched value.
+  function plainSpans(sub, markWs) {
+    if (!markWs) { return escapeHtml(sub); }
+    var out = '';
+    var re = /\s+|\S+/g;
+    var m;
+    while ((m = re.exec(sub)) !== null) {
+      out += /\s/.test(m[0])
+        ? '<span class="tt-wsp">' + escapeHtml(m[0]) + '</span>'
+        : escapeHtml(m[0]);
+    }
+    return out;
+  }
+
+  // `markWs` is on for model INPUT text (where spacing is part of the grammar) and off
+  // for the emitted `calls=`/deltas JSON, where every separator space would be noise.
+  function renderSegments(text, segs, start, end, markWs) {
     var out = '';
     var cursor = start;
     for (var i = 0; i < segs.length; i++) {
@@ -667,7 +686,7 @@
       if (s.start >= end) { break; }
       var a = Math.max(start, s.start);
       var b = Math.min(end, s.end);
-      if (cursor < a) { out += escapeHtml(text.slice(cursor, a)); }
+      if (cursor < a) { out += plainSpans(text.slice(cursor, a), markWs); }
       if (s.cls) {
         out += '<span class="' + s.cls + '">' + escapeHtml(text.slice(a, b)) + '</span>';
       } else {
@@ -675,7 +694,7 @@
       }
       cursor = b;
     }
-    if (cursor < end) { out += escapeHtml(text.slice(cursor, end)); }
+    if (cursor < end) { out += plainSpans(text.slice(cursor, end), markWs); }
     return out;
   }
 
@@ -683,7 +702,7 @@
     text = text == null ? '' : String(text);
     var intervals = linkedTokenize(text, family, markersMap);
     if (ctx && !ctx.sealed) { registerContent(text, intervals, ctx); return escapeHtml(text); }
-    return renderSegments(text, segmentText(text, intervals, ctx), 0, text.length);
+    return renderSegments(text, segmentText(text, intervals, ctx), 0, text.length, true);
   }
 
   // Stream analogue: markers AND words are resolved over the JOINED text, then sliced
@@ -703,7 +722,7 @@
     var cursor = 0;
     for (var i = 0; i < deltas.length; i++) {
       var end = cursor + deltas[i].length;
-      rendered.push(renderSegments(text, segs, cursor, end));
+      rendered.push(renderSegments(text, segs, cursor, end, true));
       cursor = end;
     }
     return rendered;

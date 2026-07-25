@@ -434,6 +434,10 @@ th.case-sub .ttip { min-width: 46em; font-weight: 400; text-align: left; }
 .tt-ws5 { background: rgba(251, 146, 60, 0.34); }
 .tt-ws6 { background: rgba(34, 211, 238, 0.30); }
 .tt-ws7 { background: rgba(163, 230, 53, 0.30); }
+/* Whitespace belonging to no matched string — e.g. the separator between two markers.
+ * Neutral grey rather than a hue, because it is part of the format, not of a value. */
+.tt-wsp { background: rgba(148, 163, 184, 0.22); border-radius: 2px;
+          box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 
 /* ---- Transpose view (DIS-2280) ----
    A client-side transposed mirror of the conformance table: models become
