@@ -1556,10 +1556,19 @@ def _reasoning_columns_model(columns: list[str], descriptions: dict[str, str]) -
         groups.append({"key": gk, "label": _case_group_label(run[0]),
                        "band": _case_band_class(run[0]), "span": len(run)})
         for case_id in run:
+            # `descriptions` is keyed by the DOC id (`batch.1.a`), not the full case id
+            # (`REASONING.batch.1.a`) — every other reader here goes through
+            # _case_doc_id. Looking up the full id never matched, and the old fallback
+            # `case_id.split(".")[0]` degraded to the literal "REASONING", so reasoning
+            # column headers carried an empty description while the text sat unused in
+            # REASONING_CASES.md. Fall back to the parent case (`batch.1`) like the
+            # tool-calling side does.
+            doc_id = _case_doc_id(case_id)
             cols.append({"sub": case_id, "group_key": gk,
                          "band": _case_band_class(case_id),
                          "label": _display_case_id(case_id),
-                         "desc": descriptions.get(case_id) or descriptions.get(case_id.split(".")[0]) or ""})
+                         "desc": descriptions.get(doc_id)
+                                 or descriptions.get(doc_id.rsplit(".", 1)[0]) or ""})
     return groups, cols
 
 
