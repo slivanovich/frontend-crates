@@ -461,10 +461,15 @@
         if (cands[i] && cands[i].is_ref) { ref = cands[i]; break; }
       }
       if (!ref && cands.length) { ref = cands[0]; }
+      // Keep the raw chunk list for stream cases: the popup joins them for coloring
+      // (markers and values must resolve over the WHOLE stream), but the reader still
+      // needs to see where one chunk ended and the next began.
+      var inp = (tip && tip.input) || {};
       rows.push({
         family: row.family || '',
         label: row.model_label || row.family || '',
         text: text ? text : null,
+        chunks: (inp.chunks && inp.chunks.length) ? inp.chunks : null,
         block: ref ? ref.block : null,
         reason: text ? null : (text === '' ? 'empty input — this case tests empty model text'
                                            : 'n/a — ' + naReason(cell, tip)),
@@ -501,7 +506,12 @@
         if (r.text) { mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx); }
         mc.sealLinkCtx(ctx);
       }
-      if (r.text) {
+      if (r.text && r.chunks && mc) {
+        // Slice the JOINED render back apart at the chunk boundaries and mark each seam,
+        // so cross-chunk coloring stays correct while the chunking stays visible.
+        cell = mc.colorizeLinkedStreamDeltas(r.chunks, r.family || null, _familyMarkers, ctx)
+          .join('<span class="gr-chunk-sep" title="chunk boundary"></span>');
+      } else if (r.text) {
         cell = mc ? mc.colorizeLinked(r.text, r.family || null, _familyMarkers, ctx)
                   : escapeHtml(r.text);
       } else {

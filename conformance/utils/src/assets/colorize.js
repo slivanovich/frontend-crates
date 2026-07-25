@@ -455,7 +455,7 @@
   //      position. Output text the input never contained stays plain.
   // So an output value carries exactly the color it had on the input side, and a parser
   // that concatenates two inputs shows both source colors in the joined result.
-  function newLinkCtx() { return { hue: {}, seq: 0, vocab: [], sealed: false }; }
+  function newLinkCtx() { return { hue: {}, seq: 0, vocab: [], markers: {}, sealed: false }; }
 
   // Token rule: a content run splits on STRUCTURAL characters — anything outside
   // [A-Za-z0-9_ ] (quotes, braces, colons, commas, newlines). Spaces stay INSIDE a
@@ -621,6 +621,13 @@
     contentGaps(text, intervals).forEach(function (g) {
       registerTokens(text.slice(g[0], g[1]), ctx);  // the WHOLE run, never a chunk slice
     });
+    // Remember which marker literals the INPUT actually contained. An unmatched marker
+    // in OUTPUT text that the input never had was INJECTED by the parser, not leaked
+    // through it — those are opposite findings and must not share the alarm color.
+    for (var i = 0; i < intervals.length; i++) {
+      var b = markerBounds(intervals[i]);
+      if (b[0] < b[1]) { ctx.markers[text.slice(b[0], b[1])] = true; }
+    }
   }
 
   // Segment the ENTIRE text once — marker spans plus matched word spans, in order.
@@ -633,7 +640,13 @@
     var segs = [];
     for (var i = 0; i < intervals.length; i++) {
       var b = markerBounds(intervals[i]);
-      if (b[0] < b[1]) { segs.push({ start: b[0], end: b[1], cls: markerClass(intervals[i].cls) }); }
+      if (b[0] < b[1]) {
+        var cls = intervals[i].cls;
+        if (cls === 'tt-orphan' && ctx && ctx.sealed && !ctx.markers[text.slice(b[0], b[1])]) {
+          cls = 'tt-injected';
+        }
+        segs.push({ start: b[0], end: b[1], cls: markerClass(cls) });
+      }
     }
     contentGaps(text, intervals).forEach(function (g) {
       matchSegments(text.slice(g[0], g[1]), ctx).forEach(function (s) {

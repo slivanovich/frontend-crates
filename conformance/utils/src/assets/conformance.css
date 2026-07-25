@@ -377,6 +377,10 @@ th.case-sub .ttip { min-width: 62em; font-weight: 400; text-align: left; }
 .ttip-grammar td.gri { color: #e5e7eb; }
 .ttip-grammar tr.gr-na td.gri { color: #94a3b8; font-style: italic; }
 .ttip-grammar td.gro { color: #e5e7eb; border-left: 2px solid #64748b; }
+/* Chunk seam in the stream popup: the input column shows the JOINED stream (so
+ * colors resolve across boundaries), which otherwise hides where each chunk ended. */
+.gr-chunk-sep { display: inline-block; width: 0; height: 1.05em; margin: 0 2px;
+                vertical-align: -0.2em; border-left: 1px dashed #7c8899; }
 .ttip-unavail { margin-top: 3px; color: #94a3b8; font-style: normal; font-size: 11px; }
 /* Paired-tag palette: each distinct tag name gets a unique color (cycles
  * if more names than colors). Orphans get the red-background treatment. */
@@ -415,6 +419,11 @@ th.case-sub .ttip { min-width: 62em; font-weight: 400; text-align: left; }
 .tt-mbg-c6 { background: rgba(34, 211, 238, 0.30); }
 .tt-mbg-c7 { background: rgba(163, 230, 53, 0.30); }
 .tt-mbg-orphan { background: #dc2626; color: #fff; }  /* unmatched / error marker: bright red bg */
+/* INJECTED marker: present in the parser's output but never in its input, so it was
+ * added deliberately rather than leaked through. minimax_append_think exists to prepend
+ * a synthetic `<think>`; painting that the same alarming red as a genuine unmatched
+ * marker claimed a bug where the fixture documents intended behavior. Violet, not red. */
+.tt-mbg-injected { background: rgba(139, 92, 246, 0.45); color: #f5f3ff; }
 .tt-mbg-ns { background: rgba(107, 114, 128, 0.45); }
 .tt-mbg-h-start { background: rgba(251, 191, 36, 0.34); }
 .tt-mbg-h-channel { background: rgba(96, 165, 250, 0.36); }

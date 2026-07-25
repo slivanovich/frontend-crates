@@ -1523,15 +1523,21 @@ def _reasoning_cell_model(
     # (e.g. ["<mm:thi", "nk>reason</mm:think>answer"]). The streamed input is their
     # concatenation — join it so the reasoning-stream input cell isn't blank.
     model_text = case.get("model_text")
+    chunk_list = None
     if not model_text:
         chunks = case.get("chunks")
         if isinstance(chunks, list) and all(isinstance(c, str) for c in chunks):
             model_text = "".join(chunks)
+            # Keep the boundaries too. Joining is right for display and coloring (both
+            # must resolve across chunks), but discarding the split left the reader with
+            # no way to see where one chunk ended — the popup looked like one blob.
+            # Shape matches the toolcalling corpus so the view has one code path.
+            chunk_list = [{"delta_text": c} for c in chunks]
     tooltip = {
         "head": head,
         "description": case.get("description") or "",
         "input": {"kind": "text" if model_text else None, "text": model_text,
-                  "chunks": None, "family": family},
+                  "chunks": chunk_list, "family": family},
         "candidates": candidates,
         "baseline": None,
         "reasons": reasons,
