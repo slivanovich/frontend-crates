@@ -7,6 +7,48 @@
 // unmodified. The template emits only the page skeleton + the model blob; this
 // view is the sole renderer of the tabs bar and panels.
 (function () {
+  // --- Theme (light / dark) --------------------------------------------------
+  // The page was light while every popup was dark, so the two surfaces disagreed. One
+  // switch drives both via `data-theme` on <html>; CSS carries the per-surface overrides.
+  // Persisted in a COOKIE, not a URL param — the query string is reserved for the
+  // click-driven compare/selection state, and the theme must not be shareable noise.
+  var THEME_COOKIE = 'conformance_theme';
+  var THEME_GLYPH = { light: '\u25D1', dark: '\u25D0' };  // ◑ / ◐
+
+  function readCookie(name) {
+    var parts = String(document.cookie || '').split(';');
+    for (var i = 0; i < parts.length; i++) {
+      var kv = parts[i].split('=');
+      if (kv[0].trim() === name) { return decodeURIComponent((kv[1] || '').trim()); }
+    }
+    return null;
+  }
+  // localStorage backs the cookie because a `file://` page cannot set one — the rendered
+  // HTML is opened both ways (served over http, and straight off disk), and a preference
+  // that silently forgets itself in one of them is worse than no preference.
+  function readStored() {
+    try { return window.localStorage.getItem(THEME_COOKIE); } catch (e) { return null; }
+  }
+  function currentTheme() {
+    var t = readCookie(THEME_COOKIE) || readStored();
+    return t === 'dark' || t === 'light' ? t : 'light';
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    // 1 year, path=/ so it holds for every rendered page in the tree.
+    document.cookie = THEME_COOKIE + '=' + theme + ';path=/;max-age=31536000;samesite=lax';
+    try { window.localStorage.setItem(THEME_COOKIE, theme); } catch (e) { /* private mode */ }
+    var btns = document.querySelectorAll('[data-theme-toggle]');
+    for (var i = 0; i < btns.length; i++) { btns[i].textContent = THEME_GLYPH[theme]; }
+  }
+  // Apply before the table is built so there is no flash of the wrong theme.
+  applyTheme(currentTheme());
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-theme-toggle]') : null;
+    if (!b) { return; }
+    applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+  }, false);
+
   // --- Escaping helpers ------------------------------------------------------
   // Every plain-text value from the model is escaped before insertion. Fields
   // whose name ends in `_html` (label_html, model_label_html, legend_html,
@@ -807,6 +849,8 @@
       + '<label class="checkbox-option cmp-detailed"><input type="checkbox" data-view-detailed> Detailed</label>'
       + '<label class="checkbox-option cmp-transpose"><input type="checkbox" data-transpose-toggle> Transpose</label>'
       + '<button type="button" class="cmp-reset" data-reset title="Clear all selections and reload defaults">Reset</button>'
+      + '<button type="button" class="theme-toggle" data-theme-toggle'
+      + ' title="Switch between light and dark">' + THEME_GLYPH[currentTheme()] + '</button>'
       + '</span></div>';
     var tmp = document.createElement('div');
     tmp.innerHTML = html;
