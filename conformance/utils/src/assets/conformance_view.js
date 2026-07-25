@@ -457,11 +457,22 @@
                                            : 'n/a — ' + naReason(cell, tip)),
       });
     });
-    return { head: col.label, desc: col.desc || '', grammar: rows };
+    return { head: fullCaseId(tab, col), desc: col.desc || '', grammar: rows };
+  }
+
+  // The header shows the FULL case id, matching the cell popups and the fixture YAML, so
+  // a column is identifiable without counting across the header row. Tool-calling
+  // columns carry a bare sub ("1", "9.a") against a mode-qualified prefix
+  // ("TOOLCALLING.batch."); reasoning columns already carry the whole id.
+  function fullCaseId(tab, col) {
+    var prefix = tab.case_prefix || '';
+    var sub = String(col.sub == null ? col.label : col.sub);
+    if (!prefix) { return sub; }
+    return sub.indexOf(prefix) === 0 ? sub : prefix + sub;
   }
 
   function buildGrammarHtml(m) {
-    var h = '<div class="ttip-head">' + escapeHtml('Case ' + (m.head || '')) + '</div>';
+    var h = '<div class="ttip-head">' + escapeHtml(m.head || '') + '</div>';
     if (m.desc) { h += '<div class="ttip-section">' + escapeHtml(m.desc) + '</div>'; }
     var body = '';
     (m.grammar || []).forEach(function (r) {
