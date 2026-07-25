@@ -83,7 +83,11 @@ from tests.parity.common import (
     linkify_text_html,
     parity_cell_class,
 )
-from tests.parity.markup import colorize_markup, colorize_stream_deltas
+from tests.parity.markup import (
+    colorize_markup,
+    colorize_stream_deltas,
+    declared_markers,
+)
 from tests.parity.reasoning import table as reasoning_table
 from tests.parity.toolcalling import table as toolcalling_table
 
@@ -1777,10 +1781,15 @@ def _cell_candidate_meta(case: dict, output_kind: str) -> tuple[dict, list[dict]
             meta.append({"key": item["key"], "label": item["label"],
                          "version": None, "block_raw": item["block"]})
     elif ver_status:
+        # The mode is the TAB's, not a constant: this branch also serves the streamv2
+        # tab, where dynamo_v2 and vllm_rust are stream-only impls (impls.py IMPL_SPECS)
+        # and can never be "(batch)". Hardcoding it made the tooltip header contradict
+        # the compare bar, which builds the same candidates via _stream_candidate_items.
+        # _full_label still maps dynamo_v1 on stream data to "(jail+batch)".
         for impl in ("dynamo_v1", "dynamo_v2", "vllm_rust", "vllm_python", "sglang_python"):
             for slug, info in (ver_status.get(impl) or {}).items():
                 meta.append({"key": f"{impl}-{slug}",
-                             "label": _full_label(impl, info["version"], "batch"),
+                             "label": _full_label(impl, info["version"], output_kind),
                              "version": info["version"], "block_raw": info["block"]})
     else:
         expected = _expected(case)
@@ -2130,6 +2139,9 @@ def render_combined_html(
     # gone; the template emits a skeleton and the model blob, the view builds the DOM.
     page_model = build_combined_model(
         output_path=output_path, artifact_root=artifact_root, stamp=stamp, sha=sha)
+    # Per-family declared markers (pairs/singletons) for the JS colorizer's declared
+    # lookup — the same table markup.py's _declared_lookup consults server-side.
+    page_model["family_markers"] = declared_markers()
     model_json = _model.to_script_json(page_model)
 
     html = (
@@ -2141,6 +2153,7 @@ def render_combined_html(
             stamp=stamp,
             conformance_css=_read_asset("conformance.css"),
             conformance_js=_read_asset("conformance.js"),
+            colorize_js=_read_asset("colorize.js"),
             conformance_view_js=_read_asset("conformance_view.js"),
             sha=sha,
             short_sha=sha[:12] if sha else "",

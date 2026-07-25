@@ -325,16 +325,25 @@ td.cell .ttip a:hover, td.parser .ttip a:hover { color: #dbeafe; background: tra
 .ttip-leak { color: #ff6b6b; font-weight: 700; }
 .ttip-pre { margin: 2px 0 0 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; color: #e5e7eb; }
 /* Per-chunk emit chart: input | Dynamo Rust | vLLM Rust | vLLM Python | SGLang, one row per chunk. */
-.ttip-chunks { border-collapse: collapse; margin: 3px 0 0 0; font-size: 11px; width: 100%; }
+/* Equal-width output columns. With the default auto layout each candidate column sizes
+ * to its own content, so the REF column and the compare-with columns came out different
+ * widths and were hard to scan side by side. `table-layout: fixed` gives every column
+ * WITHOUT an explicit width an equal share of the leftover space — so only the input
+ * column is pinned below, and every output column matches. */
+.ttip-chunks { border-collapse: collapse; margin: 3px 0 0 0; font-size: 11px; width: 100%; table-layout: fixed; }
+.ttip-chunks th:first-child, .ttip-chunks td:first-child { width: 22em; }
 /* pre-wrap so runs of spaces in emitted text render faithfully — HTML collapsing
    made a whitespace-only divergence (e.g. a double vs single trailing space)
    invisible: two cells LOOKED identical while their compare signatures differed. */
-.ttip-chunks th, .ttip-chunks td { border: 1px solid #475569; padding: 2px 5px; text-align: left; vertical-align: top; white-space: pre-wrap; }
+/* `word-break` is required under the fixed layout above: a column no longer widens for
+ * its content, and an emitted `args='{"name":"get_weather",...}'` has no spaces to wrap
+ * at, so without this it would overflow its cell. */
+.ttip-chunks th, .ttip-chunks td { border: 1px solid #475569; padding: 2px 5px; text-align: left; vertical-align: top; white-space: pre-wrap; word-break: break-word; }
 .ttip-chunks th { background: #1e293b; color: #93c5fd; font-weight: 600; }
 .ttip-chunks td { color: #e5e7eb; }
 .ttip-chunks td.cin { color: #cbd5e1; max-width: 22em; word-break: break-word; }
 .ttip-chunks tr.ttip-final td { border-top: 2px solid #64748b; background: #0b1220; }
-.ttip-chunks tr.ttip-final td.cin { color: #93c5fd; font-weight: 600; }
+.ttip-chunks tr.ttip-final td.cin { color: #93c5fd; }
 /* Baseline column (Dynamo Rust batch): a fixed reference left of the stream columns,
    set off with a thicker right border and a tinted background. */
 .ttip-chunks th.cbase-h { background: #1e293b; color: #fbbf24; border-right: 2px solid #64748b; }
@@ -362,6 +371,56 @@ td.cell .ttip a:hover, td.parser .ttip a:hover { color: #dbeafe; background: tra
 .tt-h-call { color: #fb923c; }
 .tt-h-stop { color: #f87171; }
 .tt-h-other { color: #22d3ee; }
+
+/* Linked view (what the page renders): MARKERS get a BACKGROUND in their pair color
+ * (open/close match; distinct pairs differ, so markers are told apart). An unmatched /
+ * error marker gets a bright red bg. The hues mirror the paired-tag and harmony palettes
+ * above. Marker text stays the default color; box-decoration-break keeps the bg intact
+ * if a marker wraps. */
+.tt-mbg { border-radius: 3px; padding: 0 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.tt-mbg-c0 { background: rgba(52, 211, 153, 0.34); }
+.tt-mbg-c1 { background: rgba(96, 165, 250, 0.36); }
+.tt-mbg-c2 { background: rgba(251, 191, 36, 0.34); }
+.tt-mbg-c3 { background: rgba(244, 114, 182, 0.34); }
+.tt-mbg-c4 { background: rgba(167, 139, 250, 0.38); }
+.tt-mbg-c5 { background: rgba(251, 146, 60, 0.34); }
+.tt-mbg-c6 { background: rgba(34, 211, 238, 0.30); }
+.tt-mbg-c7 { background: rgba(163, 230, 53, 0.30); }
+.tt-mbg-orphan { background: #dc2626; color: #fff; }  /* unmatched / error marker: bright red bg */
+.tt-mbg-ns { background: rgba(107, 114, 128, 0.45); }
+.tt-mbg-h-start { background: rgba(251, 191, 36, 0.34); }
+.tt-mbg-h-channel { background: rgba(96, 165, 250, 0.36); }
+.tt-mbg-h-constrain { background: rgba(167, 139, 250, 0.38); }
+.tt-mbg-h-message { background: rgba(52, 211, 153, 0.34); }
+.tt-mbg-h-call { background: rgba(251, 146, 60, 0.34); }
+.tt-mbg-h-stop { background: rgba(248, 113, 113, 0.34); }
+.tt-mbg-h-other { background: rgba(34, 211, 238, 0.30); }
+
+/* User text: a per-word FOREGROUND color keyed by the word through the shared per-tooltip
+ * context, so the SAME word renders the same color everywhere (input, outputs, chunks);
+ * adjacent distinct words alternate as the 8-hue palette cycles. */
+.tt-fg0 { color: #34d399; }
+.tt-fg1 { color: #60a5fa; }
+.tt-fg2 { color: #fbbf24; }
+.tt-fg3 { color: #f472b6; }
+.tt-fg4 { color: #a78bfa; }
+.tt-fg5 { color: #fb923c; }
+.tt-fg6 { color: #22d3ee; }
+.tt-fg7 { color: #a3e635; }
+
+/* Whitespace INSIDE a matched string is payload, not layout: vLLM Rust emits
+ * `"location":" NYC "` where Dynamo emits `"location":"NYC"`, and a bare space renders
+ * identically either way. Give that whitespace a background in ITS OWN word's hue, so
+ * the leading/trailing spaces are visible and obviously belong to the same string. */
+.tt-ws { border-radius: 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.tt-ws0 { background: rgba(52, 211, 153, 0.34); }
+.tt-ws1 { background: rgba(96, 165, 250, 0.36); }
+.tt-ws2 { background: rgba(251, 191, 36, 0.34); }
+.tt-ws3 { background: rgba(244, 114, 182, 0.34); }
+.tt-ws4 { background: rgba(167, 139, 250, 0.38); }
+.tt-ws5 { background: rgba(251, 146, 60, 0.34); }
+.tt-ws6 { background: rgba(34, 211, 238, 0.30); }
+.tt-ws7 { background: rgba(163, 230, 53, 0.30); }
 
 /* ---- Transpose view (DIS-2280) ----
    A client-side transposed mirror of the conformance table: models become
@@ -460,5 +519,5 @@ body.cmp-loading .cmp-loading-note { display: block; position: fixed; top: 8px; 
 /* Popup output field labels + their quotes (reasoning_text, normal_text,
    input_text, calls, args, name — one convention): the blue input-text color.
    Fixture `explanation:` notes are secondary -> gray. */
-.ttip .fldl { color: #93c5fd; }
+.ttip .fldl { color: #9ca3af; }
 .ttip .expl { color: #9ca3af; }

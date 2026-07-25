@@ -1519,7 +1519,14 @@ def _reasoning_cell_model(
         for f in _reasoning_facts(case, family)
         if f["impl"] != "dynamo_v1" and f["agrees"] is False and f["reason"]
     ]
+    # Batch cases carry `model_text`; stream cases carry `chunks` as raw delta STRINGS
+    # (e.g. ["<mm:thi", "nk>reason</mm:think>answer"]). The streamed input is their
+    # concatenation — join it so the reasoning-stream input cell isn't blank.
     model_text = case.get("model_text")
+    if not model_text:
+        chunks = case.get("chunks")
+        if isinstance(chunks, list) and all(isinstance(c, str) for c in chunks):
+            model_text = "".join(chunks)
     tooltip = {
         "head": head,
         "description": case.get("description") or "",

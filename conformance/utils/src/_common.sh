@@ -67,6 +67,8 @@ _build_stage_base() {
   mkdir -p "$STAGE/tests/parity/assets"
   \cp -f "$TOOLS/assets/conformance.css" "$STAGE/tests/parity/assets/conformance.css"
   \cp -f "$TOOLS/assets/conformance.js" "$STAGE/tests/parity/assets/conformance.js"
+  # Markup colorizer (port of markup.py); inlined before conformance_view.js.
+  \cp -f "$TOOLS/assets/colorize.js" "$STAGE/tests/parity/assets/colorize.js"
   # DIS-2434 JSON data model + JS view: model.py builds it (imported by BOTH pages via
   # reasoning_table), conformance_view.js renders it. Staged here so v1 + v2 both find them.
   \cp -f "$TOOLS/model.py" "$STAGE/tests/parity/model.py"

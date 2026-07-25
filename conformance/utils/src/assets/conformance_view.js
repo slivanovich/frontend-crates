@@ -50,10 +50,28 @@
     return out;
   }
 
-  // COLORIZED: the server colorizes tool-call markup + whitespace (markup.py's
-  // colorize_markup / _mark_ws). First-draft: HTML-escape only, never crash.
-  /* TODO: port colorize_markup whitespace chips + markup coloring from markup.py */
-  function colorize(text) { return escapeHtml(text == null ? '' : String(text)); }
+  // Per-family declared markers (page.family_markers) for the colorizer's declared
+  // lookup — the JS analogue of markup.py's _declared_lookup. Set at entry.
+  var _familyMarkers = {};
+  // COLORIZED: delegate to colorize.js (__markupColorize). `ctx` is the per-tooltip link
+  // context so identical content shares a background across input + output cells. If the
+  // module is somehow absent, fall back to plain escaping so the page never crashes.
+  // Markers -> background color (pair-matched; unmatched -> red); user text -> per-word
+  // foreground color (same word == same color everywhere in this tooltip).
+  function colorize(text, family, ctx) {
+    var mc = (typeof window !== 'undefined') && window.__markupColorize;
+    if (!mc) { return escapeHtml(text == null ? '' : String(text)); }
+    return mc.colorizeLinked(text, family == null ? null : family, _familyMarkers, ctx);
+  }
+  // Word coloring only, no marker parsing — for the `calls=` JSON blob. The parsed
+  // arguments there are the SAME values the input carried (mode, fast, ...), so they
+  // must share the tooltip's word hues; but the blob is JSON, not model markup, so
+  // running the marker matcher over it would be wrong.
+  function colorizeWords(text, ctx) {
+    var mc = (typeof window !== 'undefined') && window.__markupColorize;
+    if (!mc) { return escapeHtml(text == null ? '' : String(text)); }
+    return mc.colorizeWords(text == null ? '' : String(text), ctx);
+  }
 
   // --- Lazy tooltip building -------------------------------------------------
   // conformance.js's attachTooltip queries `cell.querySelector('.ttip')` at wire
@@ -133,7 +151,7 @@
   }
 
   // --- Output block rendering (mirrors _format_output_block_html) ------------
-  function outputBlock(b) {
+  function outputBlock(b, family, ctx) {
     if (!b) { return '—'; }
     if (b.unavailable != null) {
       return 'unavailable: ' + escapeHtml(String(b.unavailable));
@@ -144,17 +162,17 @@
     }
     var out;
     if (b.reasoning_text != null) {
-      // Reasoning cell: reasoning_text + normal_text (no tool calls).
-      out = '<span class="fldl">reasoning_text=\'</span>' + colorize(b.reasoning_text)
+      // Reasoning cell: reasoning_text + normal_text (markers -> bg, words -> fg).
+      out = '<span class="fldl">reasoning_text=\'</span>' + colorize(b.reasoning_text, family, ctx)
         + '<span class="fldl">\'</span>'
-        + '\n<span class="fldl">normal_text=\'</span>' + colorize(b.normal_text || '')
+        + '\n<span class="fldl">normal_text=\'</span>' + colorize(b.normal_text || '', family, ctx)
         + '<span class="fldl">\'</span>';
     } else {
       var nt = b.normal_text || '';
       var calls = b.calls || [];
-      out = '<span class="fldl">normal_text=\'</span>' + colorize(nt)
+      out = '<span class="fldl">normal_text=\'</span>' + colorize(nt, family, ctx)
         + '<span class="fldl">\'</span>'
-        + '\n<span class="fldl">calls=</span>' + escapeHtml(JSON.stringify(calls));
+        + '\n<span class="fldl">calls=</span>' + colorizeWords(JSON.stringify(calls), ctx);
     }
     if (b.explanation) {
       out += '\n<span class="expl">explanation: ' + escapeHtml(String(b.explanation)) + '</span>';
@@ -180,39 +198,76 @@
 
   // One candidate's emitted deltas at one chunk, as compact text (mirrors the
   // server's _render_chunk_deltas: name deltas as name='<n>', arg fragments joined).
-  function renderDeltas(deltas) {
+  // The emitted name/arguments are values the INPUT carried (get_weather, NYC, EST),
+  // so they colorize against the tooltip vocabulary like every other output surface.
+  // The `name='`/`args='` labels around them are chrome and stay plain.
+  // Deltas are bucketed by `index` (ToolCallDelta.tool_index) FIRST. One chunk can
+  // carry deltas for two different calls, and concatenating their `arguments` into a
+  // single string renders two independent calls as one call with malformed JSON —
+  // `name='get_weather' name='get_time' args='{"location":"NYC"}{"timezone":"EST"}'`.
+  // Fragments are only meant to join WITHIN one index; `index` is exactly the field a
+  // client uses to demultiplex concurrent calls in the OpenAI stream.
+  function renderDeltas(deltas, ctx) {
     if (!deltas || !deltas.length) { return '<span class="parser-base">—</span>'; }
-    var parts = [];
-    var args = '';
+    var order = [];
+    var byIndex = {};
     deltas.forEach(function (d) {
       if (d == null) { return; }
-      if (d.name != null) { parts.push("name='" + escapeHtml(String(d.name)) + "'"); }
-      if (d.arguments != null) { args += String(d.arguments); }
+      var key = (d.index == null) ? '' : String(d.index);
+      if (!Object.prototype.hasOwnProperty.call(byIndex, key)) {
+        byIndex[key] = { names: [], args: '' };
+        order.push(key);
+      }
+      if (d.name != null) { byIndex[key].names.push(String(d.name)); }
+      if (d.arguments != null) { byIndex[key].args += String(d.arguments); }
     });
-    if (args) { parts.push("args='" + escapeHtml(args) + "'"); }
-    return parts.length ? parts.join(' ') : '<span class="parser-base">—</span>';
+    // The `#N` marker is shown only when there is more than one call to tell apart, so
+    // single-call chunks — the overwhelming majority — render exactly as before.
+    var showIndex = order.length > 1;
+    var groups = order.map(function (key) {
+      var g = byIndex[key];
+      var parts = [];
+      if (showIndex && key !== '') { parts.push('<span class="fldl">#' + escapeHtml(key) + '</span>'); }
+      g.names.forEach(function (n) { parts.push("name='" + colorizeWords(n, ctx) + "'"); });
+      if (g.args) { parts.push("args='" + colorizeWords(g.args, ctx) + "'"); }
+      return parts.join(' ');
+    }).filter(function (s) { return s !== ''; });
+    return groups.length ? groups.join('\n') : '<span class="parser-base">—</span>';
   }
 
-  function inputTextCell(input) {
+  function inputTextCell(input, ctx) {
     if (input && input.text != null) {
-      return '<span class="fldl">input_text=\'</span>' + colorize(input.text)
+      return '<span class="fldl">input_text=\'</span>' + colorize(input.text, input.family, ctx)
         + '<span class="fldl">\'</span>';
     }
     return '';
   }
 
-  function buildChartHtml(m) {
+  // Per-chunk linked delta_text, computed over the JOINED stream so a tag spanning a
+  // chunk boundary keeps one underline color (mirrors markup.colorize_stream_deltas).
+  function chunkDeltaHtml(input, ctx) {
+    var mc = (typeof window !== 'undefined') && window.__markupColorize;
+    var chunks = input.chunks || [];
+    if (!mc) {
+      return chunks.map(function (ch) { return escapeHtml(ch.delta_text || ''); });
+    }
+    return mc.colorizeLinkedStreamDeltas(chunks, input.family == null ? null : input.family, _familyMarkers, ctx);
+  }
+
+  function buildChartHtml(m, ctx) {
     var cands = m.candidates || [];
     if (!cands.length) { return ''; }
     var input = m.input || { kind: null };
+    var family = input.family;
     var header = '';
     cands.forEach(function (c) {
       header += '<th data-cand="' + escapeAttr(c.key) + '">' + escapeHtml(c.label) + '</th>';
     });
     var body = '';
     if (input.kind === 'chunks' && input.chunks && input.chunks.length) {
+      var deltaHtml = chunkDeltaHtml(input, ctx);
       input.chunks.forEach(function (ch, i) {
-        var row = '<tr><td class="cin">' + colorize(ch.delta_text || '');
+        var row = '<tr><td class="cin">' + deltaHtml[i];
         if (ch.finish_reason) {
           row += '<span class="fr"> finish=' + escapeHtml(String(ch.finish_reason)) + '</span>';
         }
@@ -220,17 +275,17 @@
         cands.forEach(function (c) {
           var impl = implKeyOf(c.key);
           var d = (ch.expected && ch.expected[impl]) || [];
-          row += '<td data-cand="' + escapeAttr(c.key) + '">' + renderDeltas(d) + '</td>';
+          row += '<td data-cand="' + escapeAttr(c.key) + '">' + renderDeltas(d, ctx) + '</td>';
         });
         body += row + '</tr>';
       });
     }
     // Assembled row: each candidate's final block, compared against the input.
     var fin = '<tr class="ttip-final"><td class="cin">'
-      + (body ? 'assembled' : inputTextCell(input)) + '</td>';
+      + (body ? 'assembled' : inputTextCell(input, ctx)) + '</td>';
     cands.forEach(function (c) {
       fin += '<td data-cand="' + escapeAttr(c.key) + '">'
-        + outputBlock(c.block).replace(/\n/g, '<br>') + '</td>';
+        + outputBlock(c.block, family, ctx).replace(/\n/g, '<br>') + '</td>';
     });
     fin += '</tr>';
     // The table carries class `ttip-chunks` — conformance.js keys the popup grid on it.
@@ -242,8 +297,26 @@
   function buildTooltipHtml(m) {
     var h = '';
     if (m.head) { h += '<div class="ttip-head">' + escapeHtml(m.head) + '</div>'; }
+    // One link context per tooltip, shared by the input and every output cell. Harvest
+    // the vocabulary from the INPUT first, then seal it: the input's tokens and their
+    // colors are the only ones that exist, and every later render (the input itself,
+    // each candidate's block, the `calls=` JSON) colors by matching against them. That
+    // is what makes an output value carry its input color, and what lets a concatenated
+    // output like `bodyanswer` come back as `body` + `answer` in the input's two colors.
+    var mc = (typeof window !== 'undefined') && window.__markupColorize;
+    var ctx = mc ? mc.newLinkCtx() : null;
+    if (ctx) {
+      var reg = m.input || {};
+      var regFamily = reg.family == null ? null : reg.family;
+      if (reg.kind === 'chunks' && reg.chunks && reg.chunks.length) {
+        mc.colorizeLinkedStreamDeltas(reg.chunks, regFamily, _familyMarkers, ctx);
+      } else if (reg.text != null) {
+        mc.colorizeLinked(reg.text, regFamily, _familyMarkers, ctx);
+      }
+      mc.sealLinkCtx(ctx);
+    }
     var cands = m.candidates || [];
-    var chart = cands.length ? buildChartHtml(m) : '';
+    var chart = cands.length ? buildChartHtml(m, ctx) : '';
     // Description shown only when there's no chart (the chart's input cell carries it).
     if (m.description && !chart) {
       h += '<pre class="ttip-pre">' + escapeHtml(m.description) + '</pre>';
@@ -256,7 +329,7 @@
       var input = m.input || { kind: null };
       if (input.kind === 'text' && input.text) {
         h += '<div class="ttip-section">Input:</div>'
-          + '<pre class="ttip-pre">' + colorize(input.text) + '</pre>';
+          + '<pre class="ttip-pre">' + colorize(input.text, input.family, ctx) + '</pre>';
       }
     }
     // Divergence reasons (structured).
@@ -664,6 +737,7 @@
     if (!page || !page.tabs || !page.tabs.length) { return; }
 
     _usesFamily = !!(page.parser_ni && Object.keys(page.parser_ni).length);
+    _familyMarkers = page.family_markers || {};
     _summaryLegendHtml = (page.meta && page.meta.summary_legend_html) || null;
 
     var multiTab = page.tabs.length > 1;

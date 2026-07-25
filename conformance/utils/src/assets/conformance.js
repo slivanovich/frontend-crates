@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Conformance matrix behavior (audit B7). Inlined at render by generate_conformance_table.py.
 (function () {
-  const margin = 8;
+  // Gutter kept between a popup and the viewport edge (1em at the 16px root size).
+  // The tooltip is width:max-content and the widest ones run to the full cap below, so
+  // without this they sit flush against the screen edge and read as clipped.
+  const margin = 16;
   const showDelayMs = 750;
   const hideDelayMs = 750;
   const columnButtons = Array.from(document.querySelectorAll('[data-col-toggle]'));
@@ -510,7 +513,12 @@
     ttip.style.top = '100%';
     ttip.style.right = 'auto';
     ttip.style.bottom = 'auto';
-    ttip.style.maxWidth = Math.round(window.innerWidth * 0.9) + 'px';
+    // Cap the width at the viewport MINUS both gutters. 90% alone is not enough: a
+    // tooltip that wide still has to be shifted left to clear the right gutter, and if
+    // the shift then pushes its left edge past `margin` the clamp below cancels it and
+    // the popup ends up flush against an edge. Bounding the width makes both fit.
+    ttip.style.maxWidth = Math.max(240, Math.min(
+      Math.round(window.innerWidth * 0.9), window.innerWidth - 2 * margin)) + 'px';
     const cellRect = cell.getBoundingClientRect();
     const tipRect = ttip.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight;
